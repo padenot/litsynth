@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <title>litsynth</title>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, target-densitydpi=160dpi, initial-scale=1.0; maximum-scale=1.0; user-scalable=0;">
+  <link rel="stylesheet" media="all" href="docco.css" />
+</head>
+<body>
+  <div id="container">
+    <div id="background"></div>
+    
+    <ul class="sections">
+        
+        
+        
+        <li id="section-1">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-1">&#182;</a>
+              </div>
+              <h1 id="litsynth">litsynth</h1>
+<h2 id="introduction-and-scope">Introduction and scope</h2>
+<p><em>litsynth</em> is the simplest Web Audio API synth module that can be used for
+demoscene purposes. It simply plays back a tune using <em>instruments</em>, according
+to a <em>score</em>, using a <em>scheduler</em>.</p>
+<p>The important parts of the code are therefore:</p>
+<ul>
+<li>The instruments. Here, a kick drum, a hi-hat and a bass synth are included, perfect
+for a simple techno tune ;</li>
+<li>The scheduler. It is responsible to schedule the notes, and is the core of the
+synth ;</li>
+<li>The score. It tells the scheduler which instrument should be played and when. </li>
+</ul>
+<p>A real synth will have much more features. In no particular order:</p>
+<ul>
+<li>Effect sends, like reverb and delays ;</li>
+<li>Effect automation and LFOs (Low Frequency Oscillators), to be able to modulate
+effects and parameters over time ;</li>
+<li>Patterns and playlist instead of this <code>simplistic</code> track structure ;</li>
+<li>More instruments, maybe using more advanced synthesis techniques ;</li>
+<li>Being able to decide on the note length, velocity, and to change instrument
+parameters for each note ;</li>
+</ul>
+<h2 id="utility-functions">Utility functions</h2>
+<p>This utility functions allows us to convert a MIDI note number to a frequency
+value. It’ll be useful when we’ll try to write melodies.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre><span class="hljs-function"><span class="hljs-keyword">function</span> <span class="hljs-title">note2freq</span><span class="hljs-params">(note)</span> </span>{
+  <span class="hljs-keyword">return</span> <span class="hljs-built_in">Math</span>.pow(<span class="hljs-number">2</span>, (note - <span class="hljs-number">69</span>) / <span class="hljs-number">12</span>) * <span class="hljs-number">440</span>;
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-2">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-2">&#182;</a>
+              </div>
+              <h2 id="the-synth">The synth</h2>
+<p>This is our main object. It takes an
+<a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioContext">AudioContext</a>
+(<code>ac</code>) and a <code>track</code>. A <code>track</code> is a JavaScript object that contains a tempo, a
+list of instruments, and the notes they have to play.</p>
+<p><code>this.sink</code> will be the
+<a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioNode">AudioNode</a> to which
+all instruments will be connected. This level of indirection will allow us to
+easily add global effects, like a reverb, later on if we feel the tune need it.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre><span class="hljs-function"><span class="hljs-keyword">function</span> <span class="hljs-title">S</span><span class="hljs-params">(ac, track)</span> </span>{
+   <span class="hljs-keyword">this</span>.ac = ac;
+   <span class="hljs-keyword">this</span>.track = track;
+   <span class="hljs-keyword">this</span>.sink = ac.destination;
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-3">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-3">&#182;</a>
+              </div>
+              <p>Noises (here, Gaussian noise), are very useful when doing audio synthesis. Here,
+we will use noise to create a hi-hat cymbal.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>S.prototype.NoiseBuffer = <span class="hljs-function"><span class="hljs-keyword">function</span><span class="hljs-params">()</span> </span>{</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-4">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-4">&#182;</a>
+              </div>
+              <p>It would be wasteful to recompute a noise buffer each time the hi-hat hits, so
+we compute it once and store it.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  <span class="hljs-keyword">if</span> (!S._NoiseBuffer) {</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-5">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-5">&#182;</a>
+              </div>
+              <p><a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioBuffer">AudioBuffer</a> hold
+samples, associated with a number of channels and a sample rate. They are to be
+used with a variety of nodes (they can’t simply take, say, a <code>Float32Array</code>, but
+it is easy to set a <code>Float32Array</code> to be the content of an <code>AudioBuffer</code> like
+so: <code>AudioBuffer.getChannelData(0).set(float32array)</code>.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    S._NoiseBuffer = <span class="hljs-keyword">this</span>.ac.createBuffer(<span class="hljs-number">1</span>, <span class="hljs-keyword">this</span>.ac.sampleRate / <span class="hljs-number">10</span>, <span class="hljs-keyword">this</span>.ac.sampleRate);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-6">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-6">&#182;</a>
+              </div>
+              <p>To be able to write into an <code>AudioBuffer</code>, you need to use the
+<code>getChannelData(channel)</code> method. This gives you a <code>Float32Array</code> that you can
+modify at will.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">var</span> cd = S._NoiseBuffer.getChannelData(<span class="hljs-number">0</span>);
+    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">var</span> i = <span class="hljs-number">0</span>; i &lt; cd.length; i++) {</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-7">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-7">&#182;</a>
+              </div>
+              <p><code>Math.random()</code> is in the [0.0; 1.0] interval. Audio samples, in the Web Audio
+API, are in the [-1.0; 1.0] interval, so we need to rescale our random noise.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>      cd[i] = <span class="hljs-built_in">Math</span>.random() * <span class="hljs-number">2</span> - <span class="hljs-number">1</span>;
+    }
+  }
+  <span class="hljs-keyword">return</span> S._NoiseBuffer;
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-8">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-8">&#182;</a>
+              </div>
+              <h2 id="the-instruments">The instruments</h2>
+<p>Here is our kick drum. Here, we will simply use a pure sine wave, with a
+decaying frequency and volume. The <code>t</code> parameters tells us when the kick is
+supposed to be triggered.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>S.prototype.Kick = <span class="hljs-function"><span class="hljs-keyword">function</span><span class="hljs-params">(t)</span> </span>{</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-9">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-9">&#182;</a>
+              </div>
+              <p>First, we need an
+<a href="https://developer.mozilla.org/en-US/docs/Web/API/OscillatorNode">OscillatorNode</a>
+to create the sine wave (it defaults to a sine wave shape, so we don’t have to
+set anything), and a
+<a href="https://developer.mozilla.org/en-US/docs/Web/API/GainNode">GainNode</a> to be able
+to alter the volume of sine wave over time.
+In the Web Audio API, you always create new <code>AudioNode</code> using the <code>AudioContext</code>.
+<code>AudioNode</code>s can’t be used in multiple context, but <code>AudioBuffer</code> can.
+Here, we connect the oscillator to the gain node, and the gain node to the
+destination of the synth, in order for the oscillator to be processed by the
+gain node.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  <span class="hljs-keyword">var</span> o = <span class="hljs-keyword">this</span>.ac.createOscillator();
+  <span class="hljs-keyword">var</span> g = <span class="hljs-keyword">this</span>.ac.createGain();
+  o.connect(g);
+  g.connect(<span class="hljs-keyword">this</span>.sink);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-10">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-10">&#182;</a>
+              </div>
+              <p>We start by setting the gain (volume) of the <code>GainNode</code> to 1.0, which is the
+default. A <code>GainNode</code> can be used to amplify or reduce the volume: a value
+greater than 1.0 will amplify the volume of the input, whereas a value lesser
+than 1.0 will reduce it.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  g.gain.setValueAtTime(<span class="hljs-number">1.0</span>, t);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-11">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-11">&#182;</a>
+              </div>
+              <p>Percussions sound better when the decay curve is exponential, and not linear. We
+use the <code>setTargetAtTime</code> method on the <code>gain</code>
+<a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioParam">AudioParam</a> to do
+so. Here, we reduce the volume to 0.0 (silence), starting a time <code>t</code>, with a
+linear constant of <code>0.1</code>. This third parameter can be thought of as the number
+of seconds it takes to reach <code>1 - 1/Math.E</code> (around 63.2%).</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  g.gain.setTargetAtTime(<span class="hljs-number">0.0</span>, t, <span class="hljs-number">0.1</span>);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-12">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-12">&#182;</a>
+              </div>
+              <p>Then the pitch. Kick drums are sometimes called bass drum, so they have to have
+a low frequency. Let’s start at 100Hz, and decay to 30Hz using a time constant
+of 0.15.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  o.frequency.value = <span class="hljs-number">100</span>;
+  o.frequency.setTargetAtTime(<span class="hljs-number">30</span>, t, <span class="hljs-number">0.15</span>);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-13">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-13">&#182;</a>
+              </div>
+              <p>Finally, we want to start the <code>OscillatorNode</code> at <code>t</code>, and we want to stop it
+sometimes later. Here, we just want to stop it later than the decay envelope,
+one second will do.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  o.start(t);
+  o.stop(t + <span class="hljs-number">1</span>);
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-14">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-14">&#182;</a>
+              </div>
+              <p>Now, onto the hi-hats. This also demonstrate how to play samples with the Web
+Audio API.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>S.prototype.Hats = <span class="hljs-function"><span class="hljs-keyword">function</span><span class="hljs-params">(t)</span> </span>{</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-15">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-15">&#182;</a>
+              </div>
+              <p>First, we need to get an
+<a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioBufferSourceNode">AudioBufferSourceNode</a>.
+It can be though of as an <code>AudioBuffer</code> player. We set its <code>buffer</code> property to
+the noise buffer we prepared earlier.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  <span class="hljs-keyword">var</span> s = <span class="hljs-keyword">this</span>.ac.createBufferSource();
+  s.buffer = <span class="hljs-keyword">this</span>.NoiseBuffer();</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-16">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-16">&#182;</a>
+              </div>
+              <p>Next, a <code>GainNode</code> to do an envelope, like for the kick drum.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  <span class="hljs-keyword">var</span> g = <span class="hljs-keyword">this</span>.ac.createGain();</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-17">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-17">&#182;</a>
+              </div>
+              <p>Finally, we need to get rid of all the low frequency that are present in our
+noise buffer. To do so, we will use a
+<a href="https://developer.mozilla.org/en-US/docs/Web/API/BiquadFilterNode">BiquadFilterNode</a>,
+set to be a high-pass (that lets all the high frequency though, but cuts the low
+frequencies), with a cutoff frequency of 5000Hz. The cutoff frequency can be
+tuned, different music genre call for different hi-hats.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  <span class="hljs-keyword">var</span> hpf = <span class="hljs-keyword">this</span>.ac.createBiquadFilter();
+  hpf.type = <span class="hljs-string">"highpass"</span>;
+  hpf.frequency.value = <span class="hljs-number">5000</span>;</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-18">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-18">&#182;</a>
+              </div>
+              <p>Once again, we do an exponential envelope, with a time constant chosen by ear.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  g.gain.setValueAtTime(<span class="hljs-number">1.0</span>, t);
+  g.gain.setTargetAtTime(<span class="hljs-number">0.0</span>, t, <span class="hljs-number">0.02</span>);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-19">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-19">&#182;</a>
+              </div>
+              <p>Then we connect all the nodes, and we start to play the buffer at time <code>t</code>. It
+will stop playing automatically when the end is reached.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  s.connect(g);
+  g.connect(hpf);
+  hpf.connect(<span class="hljs-keyword">this</span>.sink);
+
+  s.start(t);
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-20">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-20">&#182;</a>
+              </div>
+              <p>Finally, a very simple bass synth completes our trio of instruments.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>S.prototype.Bass = <span class="hljs-function"><span class="hljs-keyword">function</span><span class="hljs-params">(t, note)</span> </span>{</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-21">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-21">&#182;</a>
+              </div>
+              <p>We need an <code>OscillatorNode</code> and a <code>GainNode</code> for the envelope.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  <span class="hljs-keyword">var</span> o = <span class="hljs-keyword">this</span>.ac.createOscillator();
+  <span class="hljs-keyword">var</span> g = <span class="hljs-keyword">this</span>.ac.createGain();</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-22">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-22">&#182;</a>
+              </div>
+              <p>We set the frequency of the oscillator to the current note, and the shape of the
+waveform to be a triangle. Triangles have harmonics, so are more interesting
+than sine waves, when used on their own, but are not as harsh as sawtooth or
+square waves.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  o.frequency.value = note2freq(note);
+  o.type = <span class="hljs-string">"triangle"</span>;</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-23">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-23">&#182;</a>
+              </div>
+              <p>Once again, a simple envelope. The time constant here is longer than for
+percussions.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  g.gain.setValueAtTime(<span class="hljs-number">1.0</span>, t);
+  g.gain.setTargetAtTime(<span class="hljs-number">0.0</span>, t, <span class="hljs-number">0.1</span>);</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-24">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-24">&#182;</a>
+              </div>
+              <p>Connect all the nodes, and start and stop the <code>OscillatorNode</code> as previously
+explained.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  o.connect(g);
+  g.connect(<span class="hljs-keyword">this</span>.sink);
+
+  o.start(t);
+  o.stop(t + <span class="hljs-number">1</span>);
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-25">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-25">&#182;</a>
+              </div>
+              <h2 id="the-scheduler">The scheduler</h2>
+<p>This function allows the caller to know when in the tune the synth is, and
+possibly to schedule scenes, and the like. It is very important to schedule the
+graphics from the music, and not the inverse.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>S.prototype.clock = <span class="hljs-function"><span class="hljs-keyword">function</span><span class="hljs-params">()</span> </span>{
+  <span class="hljs-keyword">var</span> beatLen = <span class="hljs-number">60</span> / <span class="hljs-keyword">this</span>.track.tempo;
+  <span class="hljs-keyword">return</span> (<span class="hljs-keyword">this</span>.ac.currentTime  - <span class="hljs-keyword">this</span>.startTime) / beatLen;
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-26">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-26">&#182;</a>
+              </div>
+              <p>This function allows to start the synth. It calls the <code>scheduler</code> function for
+the first time, that will do all the work.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>S.prototype.start = <span class="hljs-function"><span class="hljs-keyword">function</span><span class="hljs-params">()</span> </span>{
+  <span class="hljs-keyword">this</span>.startTime = <span class="hljs-keyword">this</span>.ac.currentTime;
+  <span class="hljs-keyword">this</span>.nextScheduling = <span class="hljs-number">0</span>;
+  <span class="hljs-keyword">this</span>.scheduler();
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-27">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-27">&#182;</a>
+              </div>
+              <p> Now the more complicated part. This function, called repeatedly, will schedule
+ the instruments to play the right notes at the right time.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>S.prototype.scheduler = <span class="hljs-function"><span class="hljs-keyword">function</span><span class="hljs-params">()</span> </span>{</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-28">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-28">&#182;</a>
+              </div>
+              <p>We need the current time, and we like to have it in beats, and not in seconds,
+as it’s easier to deal with. <code>beatLen</code> tells us how long a beat
+is, and allows to convert between beats and seconds.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  <span class="hljs-keyword">var</span> beatLen = <span class="hljs-number">60</span> / <span class="hljs-keyword">this</span>.track.tempo;
+  <span class="hljs-keyword">var</span> current = clock();</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-29">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-29">&#182;</a>
+              </div>
+              <p>Since, when doing demoscene stuff, the main thread is often busy with other
+things (graphics, physics, procedural generation of various textures and
+geometry, etc.), we want to schedule a little bit ahead, in case the main thread
+locks up for some time. We don’t really care about latency, here, so let’s say
+one second is good.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  <span class="hljs-keyword">var</span> lookahead = <span class="hljs-number">0.5</span>;</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-30">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-30">&#182;</a>
+              </div>
+              <p>If it’s time to schedule more sounds, do so, otherwise, just do nothing apart
+scheduling this function to be called again soon.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  <span class="hljs-keyword">if</span> (current + lookahead &gt; <span class="hljs-keyword">this</span>.nextScheduling) {</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-31">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-31">&#182;</a>
+              </div>
+              <p>This synth can schedule notes in quarter beats. We schedule a beat at a time. We
+start by storing the time values for quarter beats in an array</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">var</span> steps = [];
+    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">var</span> i = <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">4</span>; i++) {
+      steps.push(<span class="hljs-keyword">this</span>.nextScheduling + i * beatLen / <span class="hljs-number">4</span>);
+    }</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-32">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-32">&#182;</a>
+              </div>
+              <p>Then, for each tracks, and for each quarter beats, we find where in the score we
+are, and if there is a note (if the value is not zero), we play it.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">var</span> i <span class="hljs-keyword">in</span> <span class="hljs-keyword">this</span>.track.tracks) {
+      <span class="hljs-keyword">for</span> (<span class="hljs-keyword">var</span> j = <span class="hljs-number">0</span>; j &lt; steps.length; j++) {
+        <span class="hljs-keyword">var</span> idx = <span class="hljs-built_in">Math</span>.round(steps[j] / ((beatLen / <span class="hljs-number">4</span>));</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-33">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-33">&#182;</a>
+              </div>
+              <p>Here, we loop the tune forever.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>        <span class="hljs-keyword">var</span> note = <span class="hljs-keyword">this</span>.track.tracks[i][idx % <span class="hljs-keyword">this</span>.track.tracks[i].length];
+        <span class="hljs-keyword">if</span> (note != <span class="hljs-number">0</span>) {
+          <span class="hljs-keyword">this</span>[i](steps[j], note);
+        }
+      }
+    }</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-34">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-34">&#182;</a>
+              </div>
+              <p>Since we just scheduled some notes, we change the time of the next scheduling to
+be a beat further in time.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>    <span class="hljs-keyword">this</span>.nextScheduling += (<span class="hljs-number">60</span> / <span class="hljs-keyword">this</span>.track.tempo);
+  }</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-35">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-35">&#182;</a>
+              </div>
+              <p>Then, we call this function again soon. In a real demoscene synth, it can be
+interesting to simply put the <code>scheduler</code> function in the main rendering loop,
+as it is supposed to be called once every 16 milliseconds.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre>  setTimeout(<span class="hljs-keyword">this</span>.scheduler.bind(<span class="hljs-keyword">this</span>), <span class="hljs-number">100</span>);
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-36">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-36">&#182;</a>
+              </div>
+              <h2 id="the-score">The score</h2>
+<p>Then, we need to decide on a tempo, and write a score. Here, we are doing
+techno, so 140 bpm is good. Kick goes on the beat, and the hi-hat is off-beat.
+Then, we have a little bass theme. It can be interesting to have patterns and
+a playlist instead of directly the notes, so that patterns can be reused.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">var</span> track = {
+  tempo: <span class="hljs-number">140</span>,
+  tracks: {
+    Kick: [ <span class="hljs-number">1</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>, <span class="hljs-number">1</span>, <span class="hljs-number">0</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>, <span class="hljs-number">1</span>,<span class="hljs-number">0</span>, <span class="hljs-number">0</span>,<span class="hljs-number">0</span>, <span class="hljs-number">1</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>],
+    Hats: [ <span class="hljs-number">0</span>,<span class="hljs-number">0</span>,<span class="hljs-number">1</span>,<span class="hljs-number">0</span>, <span class="hljs-number">0</span>, <span class="hljs-number">0</span>,<span class="hljs-number">1</span>,<span class="hljs-number">0</span>, <span class="hljs-number">0</span>,<span class="hljs-number">0</span>, <span class="hljs-number">1</span>,<span class="hljs-number">0</span>, <span class="hljs-number">0</span>,<span class="hljs-number">0</span>,<span class="hljs-number">1</span>,<span class="hljs-number">1</span>],
+    Bass: [<span class="hljs-number">36</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>,<span class="hljs-number">38</span>,<span class="hljs-number">38</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>,<span class="hljs-number">36</span>,<span class="hljs-number">0</span>,<span class="hljs-number">36</span>,<span class="hljs-number">0</span>,<span class="hljs-number">39</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>,<span class="hljs-number">0</span>]
+  }
+}</pre></div></div>
+            
+        </li>
+        
+        
+        <li id="section-37">
+            <div class="annotation">
+              
+              <div class="pilwrap ">
+                <a class="pilcrow" href="#section-37">&#182;</a>
+              </div>
+              <p>Finally, we get an AudioContext, pass it to a synth along with a track, and
+start the tune.</p>
+
+            </div>
+            
+            <div class="content"><div class='highlight'><pre><span class="hljs-keyword">var</span> ac = <span class="hljs-keyword">new</span> AudioContext();
+<span class="hljs-keyword">var</span> s = <span class="hljs-keyword">new</span> S(ac, track);
+s.start();</pre></div></div>
+            
+        </li>
+        
+    </ul>
+  </div>
+</body>
+</html>
