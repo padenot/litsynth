@@ -9,6 +9,7 @@ html:
 
 gh-page: html
 	git checkout gh-pages
-	rm litsynth.js.md LICENSE README.me Makefile
+	rm -f litsynth.js.md LICENSE README.me Makefile
 	mv docs/* .
 	rmdir docs
+	mv litsynth.js.html index.html
