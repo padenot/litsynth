@@ -251,7 +251,7 @@ as it's easier to deal with. `beatLen` tells us how long a beat
 is, and allows to convert between beats and seconds.
 
       var beatLen = 60 / this.track.tempo;
-      var current = clock();
+      var current = this.clock();
 
 Since, when doing demoscene stuff, the main thread is often busy with other
 things (graphics, physics, procedural generation of various textures and
@@ -279,7 +279,7 @@ are, and if there is a note (if the value is not zero), we play it.
 
         for (var i in this.track.tracks) {
           for (var j = 0; j < steps.length; j++) {
-            var idx = Math.round(steps[j] / ((beatLen / 4));
+            var idx = Math.round(steps[j] / ((beatLen / 4)));
 
 Here, we loop the tune forever.
 
