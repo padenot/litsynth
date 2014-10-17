@@ -47,8 +47,8 @@ list of instruments, and the notes they have to play.
 all instruments will be connected. This level of indirection will allow us to
 easily add global effects, like a reverb, later on if we feel the tune need it.
 
-    function S(ac, track) {
-       this.ac = ac;
+    function S(track) {
+       this.ac = new AudioContext();
        this.track = track;
        this.sink = ac.destination;
     }
@@ -323,6 +323,5 @@ a playlist instead of directly the notes, so that patterns can be reused.
 Finally, we get an AudioContext, pass it to a synth along with a track, and
 start the tune.
 
-    var ac = new AudioContext();
-    var s = new S(ac, track);
+    var s = new S(track);
     s.start();
