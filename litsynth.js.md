@@ -9,14 +9,14 @@ demoscene purposes. It simply plays back a tune using *instruments*, according
 to a *score*, using a *scheduler*.
 
 The important parts of the code are therefore:
-- The instruments. Here, a kick drum, a hi-hat and a bass synth are included, perfect
-  for a simple techno tune ;
+- The instruments. Here, a kick drum, a hi-hat and a acid bass synth are
+  included, perfect for a simple techno tune ;
 - The scheduler. It is responsible to schedule the notes, and is the core of the
   synth ;
-- The score. It tells the scheduler which instrument should be played and when. 
+- The score. It tells the scheduler which instrument should be played and when ;
+- Effect sends, like reverb and delays.
 
 A real synth will have much more features. In no particular order:
-- Effect sends, like reverb and delays ;
 - Effect automation and LFOs (Low Frequency Oscillators), to be able to modulate
   effects and parameters over time ;
 - Patterns and playlist instead of this `simplistic` track structure ;
@@ -47,10 +47,23 @@ list of instruments, and the notes they have to play.
 all instruments will be connected. This level of indirection will allow us to
 easily add global effects, like a reverb, later on if we feel the tune need it.
 
-    function S(ac, track) {
+`this.clap` is an `AudioBuffer` containing a 808 clap sample.
+
+    function S(ac, clap, track) {
        this.ac = ac;
+       this.clap = clap;
        this.track = track;
-       this.sink = ac.destination;
+
+We get a convolver to have a global reverb, and we set the sink to a gain node,
+that is just here to make a junction:
+
+       this.rev = ac.createConvolver();
+       this.rev.buffer = this.ReverbBuffer();
+       this.sink = ac.createGain();
+       this.sink.connect(this.rev);
+       this.rev.connect(ac.destination);
+
+       this.sink.connect(ac.destination);
     }
 
 Noises (here, Gaussian noise), are very useful when doing audio synthesis. Here,
@@ -85,6 +98,23 @@ API, are in the [-1.0; 1.0] interval, so we need to rescale our random noise.
         }
       }
       return S._NoiseBuffer;
+    }
+
+
+Then, we'll just get a simple decreasing exponential curve, with some noise, to
+simulate a reverb, still in an `AudioBuffer`:
+
+    S.prototype.ReverbBuffer = function() {
+      var len = 0.5 * this.ac.sampleRate,
+          decay = 0.5;
+      var buf = this.ac.createBuffer(2, len, this.ac.sampleRate);
+      for (var c = 0; c < 2; c++) {
+        var channelData = buf.getChannelData(c);
+        for (var i = 0; i < channelData.length; i++) {
+           channelData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+        }
+      }
+      return buf;
     }
 
 The instruments
@@ -142,6 +172,25 @@ one second will do.
 
       o.start(t);
       o.stop(t + 1);
+
+To add a bit more "bite" to the sound, we repeat the same technique, but with a
+very short 40Hz square wave. This will add some attack to the sound.
+
+      var osc2 = this.ac.createOscillator();
+      var gain2 = this.ac.createGain();
+
+      osc2.frequency.value = 40;
+      osc2.type = "square";
+
+      osc2.connect(gain2);
+      gain2.connect(this.sink);
+
+
+      gain2.gain.setValueAtTime(0.5, t);
+      gain2.gain.setTargetAtTime(0.0, t, 0.01);
+
+      osc2.start(t);
+      osc2.stop(t + 1);
     }
 
 Now, onto the hi-hats. This also demonstrate how to play samples with the Web
@@ -187,22 +236,39 @@ will stop playing automatically when the end is reached.
       s.start(t);
     }
 
-Finally, a very simple bass synth completes our trio of instruments.
+Onto the clap sound. This is just playing back a buffer:
+
+    S.prototype.Clap = function(t) {
+      var s = this.ac.createBufferSource();
+      var g = this.ac.createGain();
+
+      s.buffer = this.clap;
+
+      s.connect(g);
+      g.connect(this.sink);
+
+      g.gain.value = 0.5;
+
+      s.start(t);
+    }
+
+Finally, a simple acid bass synth completes our trio of instruments.
 
     S.prototype.Bass = function(t, note) {
 
-We need an `OscillatorNode` and a `GainNode` for the envelope.
+We need two `OscillatorNode`, a `GainNode` for the envelope, and another gain
+node for the volume:
 
       var o = this.ac.createOscillator();
+      var o2 = this.ac.createOscillator();
       var g = this.ac.createGain();
+      var g2 = this.ac.createGain();
 
-We set the frequency of the oscillator to the current note, and the shape of the
-waveform to be a triangle. Triangles have harmonics, so are more interesting
-than sine waves, when used on their own, but are not as harsh as sawtooth or
-square waves.
+We set the frequency of the oscillators to the current note, and the shape of the
+waveform to be a sawtooth.
 
-      o.frequency.value = note2freq(note);
-      o.type = "triangle";
+      o.frequency.value = o2.frequency.value = note2freq(note);
+      o.type = o2.type = "sawtooth";
 
 Once again, a simple envelope. The time constant here is longer than for
 percussions.
@@ -210,11 +276,30 @@ percussions.
       g.gain.setValueAtTime(1.0, t);
       g.gain.setTargetAtTime(0.0, t, 0.1);
 
+We set the volume a bit lower: we have two sawtooth wave:
+
+      g2.gain.value = 0.5;
+
+Now we need a low-pass filter so it sounds good. We add a bit of resonnance to
+the filter so that we have an harsh overtone:
+
+      var lp = this.ac.createBiquadFilter();
+      lp.Q.value = 25;
+
+We automate the filter so it has an attack portion: it takes some time to open
+up, the beginning of the sound being a bit more soft:
+
+      lp.frequency.setValueAtTime(300, t);
+      lp.frequency.setTargetAtTime(3000, t, 0.05);
+
 Connect all the nodes, and start and stop the `OscillatorNode` as previously
 explained.
 
       o.connect(g);
-      g.connect(this.sink);
+      o2.connect(g);
+      g.connect(lp);
+      lp.connect(g2);
+      g2.connect(this.sink);
 
       o.start(t);
       o.stop(t + 1);
@@ -308,21 +393,44 @@ The score
 
 Then, we need to decide on a tempo, and write a score. Here, we are doing
 techno, so 140 bpm is good. Kick goes on the beat, and the hi-hat is off-beat.
+Clap is every two beats.
+
 Then, we have a little bass theme. It can be interesting to have patterns and
 a playlist instead of directly the notes, so that patterns can be reused.
 
-    var track = {
-      tempo: 140,
-      tracks: {
-        Kick: [ 1,0,0,0, 1, 0,0,0, 1,0, 0,0, 1,0,0,0],
-        Hats: [ 0,0,1,0, 0, 0,1,0, 0,0, 1,0, 0,0,1,1],
-        Bass: [36,0,0,0,38,38,0,0,36,0,36,0,39,0,0,0]
-      }
-    }
 
-Finally, we get an AudioContext, pass it to a synth along with a track, and
+    var track = {
+      tempo: 135,
+      tracks: {
+        Kick: [ 1, 0, 0, 0, 1, 0, 0, 0,
+                1, 0, 0, 0, 1, 0, 0, 0,
+                1, 0, 0, 0, 1, 0, 0, 0,
+                1, 0, 0, 0, 1, 0, 0, 0],
+        Hats: [ 0, 0, 1, 0, 0, 0, 1, 0,
+                0, 0, 1, 0, 0, 0, 1, 1,
+                0, 0, 1, 0, 0, 0, 1, 0,
+                0, 0, 1, 0, 0, 0, 1, 0 ],
+        Clap: [ 0, 0, 0, 0, 1, 0, 0, 0,
+                0, 0, 0, 0, 1, 0, 0, 0,
+                0, 0, 0, 0, 1, 0, 0, 0,
+                0, 0, 0, 0, 1, 0, 0, 0],
+        Bass: [36, 0,38,36,36,38,41, 0,
+               36,60,36, 0,39, 0,48, 0,
+               36, 0,24,60,40,40,24,24,
+               36,60,36, 0,39, 0,48, 0 ]
+      }
+    };
+
+Finally, we get an AudioContext, pass it to the synth along with a track, and
 start the tune.
 
-    var ac = new AudioContext();
-    var s = new S(ac, track);
-    s.start();
+
+    fetch('clap.ogg').then((response) => {
+      response.arrayBuffer().then((arraybuffer) => {
+        var ac = new AudioContext();
+        ac.decodeAudioData(arraybuffer).then((clap) => {
+          var s = new S(ac, clap, track);
+          s.start();
+        });
+      });
+    });
