@@ -1,6 +1,10 @@
 litsynth
 =========
 
+- [Source Code](https://github.com/padenot/litsynth)
+- [Documentation](http://padenot.github.io/litsynth/index.html)
+- [Demonstration](http://padenot.github.io/litsynth/demo.html)
+
 Introduction and scope
 ----------------------
 
