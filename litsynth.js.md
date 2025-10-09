@@ -426,15 +426,17 @@ a playlist instead of directly the notes, so that patterns can be reused.
     };
 
 Finally, we get an AudioContext, pass it to the synth along with a track, and
-start the tune.
+start the tune. We have to do this in response to a user action due to
+[autoplaying audio being disallowed](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay).
 
-
-    fetch('clap.ogg').then((response) => {
-      response.arrayBuffer().then((arraybuffer) => {
-        var ac = new AudioContext();
-        ac.decodeAudioData(arraybuffer).then((clap) => {
-          var s = new S(ac, clap, track);
-          s.start();
+    document.getElementById('start')?.addEventListener('click', function() {
+      fetch('clap.ogg').then((response) => {
+        response.arrayBuffer().then((arraybuffer) => {
+          var ac = new AudioContext();
+          ac.decodeAudioData(arraybuffer).then((clap) => {
+            var s = new S(ac, clap, track);
+            s.start();
+          });
         });
       });
-    });
+    }, {once: true});

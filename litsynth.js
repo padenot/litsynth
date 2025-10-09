@@ -153,12 +153,14 @@ var track = {
            36,60,36, 0,39, 0,48, 0 ]
   }
 };
-fetch('clap.ogg').then((response) => {
-  response.arrayBuffer().then((arraybuffer) => {
-    var ac = new AudioContext();
-    ac.decodeAudioData(arraybuffer).then((clap) => {
-      var s = new S(ac, clap, track);
-      s.start();
+document.getElementById('start')?.addEventListener('click', function() {
+  fetch('clap.ogg').then((response) => {
+    response.arrayBuffer().then((arraybuffer) => {
+      var ac = new AudioContext();
+      ac.decodeAudioData(arraybuffer).then((clap) => {
+        var s = new S(ac, clap, track);
+        s.start();
+      });
     });
   });
-});
+}, {once: true});
